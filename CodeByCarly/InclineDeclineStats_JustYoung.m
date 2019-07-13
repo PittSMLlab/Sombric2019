@@ -5,12 +5,6 @@
 % files and this code present.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-WhereAreWe=cd;
-if ~strcmp(WhereAreWe(end-7:end), 'labTools')
-    display('You are not in the correct folder.  You should be in the labTools folder!')
-    return
-end
-
 %% Young Methods Figure -- Figure 1 in the final paper
 ForceTraces
 
