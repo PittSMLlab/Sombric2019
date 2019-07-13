@@ -1,0 +1,377 @@
+function [out] = computeForceParameters(strideEvents,GRFData,slowleg, fastleg,BW, trialData, markerData, gaitEvents, expData, spat)
+% expData-->Adapt Data for the kinetics
+%   This function acquires the raw kinetic data, normalizes the data by the
+%   subjects body weight, performs slope specific offset corrections (*) 
+%   filters data, and computes summary measures of the kinetic behavior for 
+%   each step which will be saved in the adapt params data.  There is some 
+%   safegaurds in place such that if the kinetic behavior does not meet my
+%   expectations that the kinetic data for that strides will be marked as
+%   NaN.
+%
+%   (*)     Offsets are applied to data collected at a slope. Note 
+%   that slope normalization was a point of dispute amoung the reviewers 
+%   for the Sombric 2019 paper on how this offset should be applied so
+%   Delta parametmers (i.e., on epoch relative to another are most acceptable).  
+
+ 
+
+%~~~~~~~ Initialize ~~~~~~~~
+trial=trialData.description;
+
+Normalizer=9.81*BW;%If I want all the forces to be unitless then set this to 9.81*BW, else set it
+%to 1*BW
+
+FlipB=1; %Previously this was needed to account for which direction 
+%subjects were walking in the global coordinates of the lab, this is not 
+%longer needed
+
+
+if iscell(trial)
+    trial=trial{1};
+end
+
+%Determine what angle the slope was run at
+[ ang ] = DetermineTMAngle( trial );
+if ~isempty(findstr(lower(expData.metaData.ID), 'decline'))
+    flipIT=-1;
+else
+    flipIT=1;
+end
+
+%Filer the data
+Filtered=GRFData.lowPassFilter(20);
+
+%~~~~~~~~~~~~~~~~ REMOVE ANY OFFSETS IN THE DATA~~~~~~~~~~~~~~~~~~~~~~~~~~~
+%New 8/5/2016 CJS: It came to my attenion that one of the decline subjects
+%(LD30) one of the force plates was not properly zeroed.  Here I am
+%manually shifting the forces.  I am assuming that the vertical forces have
+%been properly been shifted during the c3d2mat process, if this is not the 
+% events are wrong and these lines of code will not fix the events, you
+% will need to step farther back in the analysis process.
+
+%figure; plot(Filtered.getDataAsTS([s 'Fy']).Data, 'b'); hold on; plot(Filtered.getDataAsTS([f 'Fy']).Data, 'r');
+for i=1:length(strideEvents.tSHS)-1
+    timeGRF=round(Filtered.Time,6);
+    SHS=strideEvents.tSHS(i);
+    FTO=strideEvents.tFTO(i);
+    FHS=strideEvents.tFHS(i);
+    STO=strideEvents.tSTO(i);
+    FTO2=strideEvents.tFTO2(i);
+    SHS2=strideEvents.tSHS2(i);
+    
+    if isnan(FTO) || isnan(FHS) ||FTO>FHS
+        FastLegOffSetData(i)=NaN;
+    else
+        FastLegOffSetData(i)=nanmedian(Filtered.split(FTO, FHS).getDataAsTS([fastleg 'Fy']).Data);
+    end
+    if isnan(STO) || isnan(SHS2)
+        SlowLegOffSetData(i)=NaN;
+    else
+        SlowLegOffSetData(i)=nanmedian(Filtered.split(STO, SHS2).getDataAsTS([slowleg 'Fy']).Data);
+    end
+end
+FastLegOffSet=round(nanmedian(FastLegOffSetData), 3);
+SlowLegOffSet=round(nanmedian(SlowLegOffSetData), 3);
+display(['Fast Leg Off Set: ' num2str(FastLegOffSet) ', Slow Leg OffSet: ' num2str(SlowLegOffSet)]);
+
+Filtered.Data(:, find(strcmp(Filtered.getLabels, [fastleg 'Fy'])))=Filtered.getDataAsVector([fastleg 'Fy'])-FastLegOffSet;
+Filtered.Data(:, find(strcmp(Filtered.getLabels, [slowleg 'Fy'])))=Filtered.getDataAsVector([slowleg 'Fy'])-SlowLegOffSet;
+%figure; plot(Filtered.getDataAsTS([slowleg 'Fy']).Data, 'b'); hold on; plot(Filtered.getDataAsTS([fastleg 'Fy']).Data, 'r');line([0 5*10^5], [0, 0])
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+%~~~~~~~~~~~~~~~~~~~ Compute Kinetic Parameters ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+% The code currently assumes that overground trials (i.e., when not walking
+% on the treadmill) have no viaable kinetic data which was the case for the
+% old lab.  The data from overground force plates in the new lab is 
+% currently ignored. 
+
+%This is my controversial slope-specific offset
+LevelofInterest=0.5.*flipIT.*cosd(90-abs(ang)); %The actual angle of the incline
+
+if ~isempty(regexp(trial, 'OG')) || ~isempty(regexp(trialData.type, 'OG'))
+    lenny=length(strideEvents.tSHS)-1;
+    impactS=NaN.*ones(1, lenny);
+    SB=NaN.*ones(1, lenny);
+    SP=NaN.*ones(1, lenny);
+    SZ=NaN.*ones(1, lenny);
+    SX=NaN.*ones(1, lenny);
+    impactF=NaN.*ones(1, lenny);
+    FB=NaN.*ones(1, lenny);
+    FP=NaN.*ones(1, lenny);
+    FZ=NaN.*ones(1, lenny);
+    FX=NaN.*ones(1, lenny);
+    HandrailHolding=NaN.*ones(1, lenny);
+    SBmax=NaN.*ones(1, lenny);
+    SPmax=NaN.*ones(1, lenny);
+    SZmax=NaN.*ones(1, lenny);
+    SXmax=NaN.*ones(1, lenny);
+    impactSmax=NaN.*ones(1, lenny);
+    FBmax=NaN.*ones(1, lenny);
+    FPmax=NaN.*ones(1, lenny);
+    FZmax=NaN.*ones(1, lenny);
+    FXmax=NaN.*ones(1, lenny);
+    FXmax=NaN.*ones(1, lenny);
+    impactFmax=NaN.*ones(1, lenny);
+    FY_STO=NaN.*ones(1, lenny);
+    SY_FTO=NaN.*ones(1, lenny);
+    SPsum=NaN.*ones(1, lenny);
+    FPsum=NaN.*ones(1, lenny);
+    SBsum=NaN.*ones(1, lenny);
+    FBsum=NaN.*ones(1, lenny);
+    SBmax_ABS=NaN.*ones(1, lenny);
+    FBmax_ABS=NaN.*ones(1, lenny);
+    SBmax_ABS=NaN.*ones(1, lenny);
+    SBmaxQS=NaN.*ones(1, lenny);
+    SPmaxQS=NaN.*ones(1, lenny);
+    ImpactMagS=NaN.*ones(1, lenny);
+    FBmax_ABS=NaN.*ones(1, lenny);
+    FBmaxQS=NaN.*ones(1, lenny);
+    FPmaxQS=NaN.*ones(1, lenny);
+    ImpactMagF=NaN.*ones(1, lenny);
+    SPmaxNoNaN=NaN.*ones(1, lenny);
+    SBmaxNoNaN=NaN.*ones(1, lenny);
+        FPmaxNoNaN=NaN.*ones(1, lenny);
+    FBmaxNoNaN=NaN.*ones(1, lenny);
+else
+    for i=1:length(strideEvents.tSHS)-1
+        %Acquire trial specific gait events
+        timeGRF=round(GRFData.Time,6);
+        SHS=strideEvents.tSHS(i);
+        FTO=strideEvents.tFTO(i);
+        FHS=strideEvents.tFHS(i);
+        STO=strideEvents.tSTO(i);
+        FTO2=strideEvents.tFTO2(i);
+        SHS2=strideEvents.tSHS2(i);
+        
+        %1.) get the entire stride of interest on BOTH sides (SHS-->SHS2, and
+        %FHS--> FHS2).  Do this seperately for each leg incase to maintain 
+        % proper alignment. Also flip it if decline people/walking backward
+        if isnan(SHS) || isnan(STO)
+            striderS=[];
+        else %Split Data into strides
+            striderS=flipIT.*Filtered.split(SHS, STO).getDataAsTS([slowleg 'Fy']).Data/Normalizer;
+            striderSz=flipIT.*Filtered.split(SHS, STO).getDataAsTS([slowleg 'Fz']).Data/Normalizer;% New
+            striderS_Time=timeGRF(find(timeGRF==round(SHS, 3)):find(timeGRF==round(STO, 3)));
+        end
+        if isnan(FHS) || isnan(FTO2)
+            striderF=[];
+        else %Split Data into strides
+            striderF=flipIT.*Filtered.split(FHS, FTO2).getDataAsTS([fastleg 'Fy']).Data/Normalizer;
+            striderFz=flipIT.*Filtered.split(FHS, FTO2).getDataAsTS([fastleg 'Fz']).Data/Normalizer;% New
+            striderF_Time=timeGRF(find(timeGRF==round(FHS, 3)):find(timeGRF==round(FTO2, 3)));
+        end
+        
+        %A futrue funtion of this code is to us the handrail data to
+        %determine if subjets were using the handrail when walking. The
+        %exact use of this information is unclear so I will update this
+        %once the objective is clear.
+        HandrailHolding(i)= NaN;
+        
+        %Previously the following was part of a funciton called SeperateBP
+        if isempty(striderS) || all(striderS==striderS(1)) || isempty(FTO) || isempty(STO)
+            % So if there is some sort of problem with the GRF, set everything to NaN
+            impactS(i)=NaN;
+            SB(i)=NaN;
+            SP(i)=NaN;
+            SZ(i)=NaN;
+            SX(i)=NaN;
+            SBmax(i)=NaN;
+            SPmax(i)=NaN;
+            SZmax(i)=NaN;
+            SXmax(i)=NaN;
+            impactSmax(i)=NaN;
+            SYZMag(i)=NaN;
+            SPsum(i)=NaN;
+            SBsum(i)=NaN;
+            SY_FTO(i)=NaN;
+            SBmax_ABS(i)=NaN;
+            SBmaxQS(i)=NaN;
+            SPmaxQS(i)=NaN;
+            ImpactMagS(i)=NaN;
+            SPmaxNoNaN(i)=NaN;
+            SBmaxNoNaN(i)=NaN;
+            FPmaxNoNaN(i)=NaN;
+            FBmaxNoNaN(i)=NaN;
+        else
+            if nanstd(striderS)<0.01 && nanmean(striderS)<0.01 
+                %This is to get rid of places where there is only noise and no data
+                impactS(i)=NaN;
+                SB(i)=NaN;
+                SP(i)=NaN;
+                SZ(i)=NaN;
+                SX(i)=NaN;
+                SBmax(i)=NaN;
+                SPmax(i)=NaN;
+                SZmax(i)=NaN;
+                SXmax(i)=NaN;
+                impactSmax(i)=NaN;
+                SYZMag(i)=NaN;
+                SY_FTO(i)=NaN;
+                SPsum(i)=NaN;
+                SBsum(i)=NaN;
+                SBmax_ABS(i)=NaN;
+                SBmaxQS(i)=NaN;
+                SPmaxQS(i)=NaN;
+                ImpactMagS(i)=NaN;
+                SPmaxNoNaN(i)=NaN;
+            SBmaxNoNaN(i)=NaN;
+          
+            else
+                [SB(i), SBsum(i), SP(i), SPsum(i), SY_FTO(i), SBmax(i), SBmax_ABS(i), SBmaxQS(i), SPmax(i), SYZMag(i), SPmaxQS(i), ImpactMagS(i), SPmaxNoNaN(i), SBmaxNoNaN(i)] = ComputeLegForceParameters(striderS,  LevelofInterest, FlipB, ['Epoch: ' trialData.name, '; Stide#:' num2str(i) '; SlowLeg']);
+                
+                % There was some interest in understand Anterior-Posterior
+                % GRF impact impulse (i.e., right after heel strike)
+                % This copmputaiton is based on gait events so I can't do
+                % this in ComputeLegForceParameters.
+                if exist('postImpactS')==0 || isempty(postImpactS)==1
+                    impactS(i)=NaN;
+                    impactSmax(i)=NaN;
+                else
+                    impactS(i)=nanmean(striderS(find((striderS(SHS-SHS+1: postImpactS)-LevelofInterest)>0)))-LevelofInterest;
+                    if isempty(striderS(find((striderS(SHS-SHS+1: postImpactS)-LevelofInterest)>0)))
+                        impactSmax(i)=NaN;
+                    else
+                        impactSmax(i)=nanmax(striderS(find((striderS(SHS-SHS+1: postImpactS)-LevelofInterest)>0)))-LevelofInterest;
+                    end
+                end 
+            end
+            
+            % While we think the Anterior Posterior GRFs are whats of
+            % interst other studies have looked at the vertical and medial
+            % lateral as well.
+            SZ(i)=-1*nanmean(Filtered.split(SHS, STO).getDataAsTS([slowleg 'Fz']).Data)/Normalizer;
+            SX(i)=nanmean(Filtered.split(SHS, STO).getDataAsTS([slowleg 'Fx']).Data)/Normalizer;
+            SZmax(i)=-1*nanmin(Filtered.split(SHS, STO).getDataAsTS([slowleg 'Fz']).Data)/Normalizer;
+            SXmax(i)=nanmin(Filtered.split(SHS, STO).getDataAsTS([slowleg 'Fx']).Data)/Normalizer;
+        end
+        
+        %%Now we compute the same parameters for the other leg (i.e., fast
+        %%leg)
+        if isempty(striderF) || all(striderF==striderF(1)) || isempty(FTO) || isempty(STO)
+            % So if there is some sort of problem with the GRF, set everything to NaN
+            impactF(i)=NaN;
+            FB(i)=NaN;
+            FP(i)=NaN;
+            FZ(i)=NaN;
+            FX(i)=NaN;
+            FBmax(i)=NaN;
+            FPmax(i)=NaN;
+            FZmax(i)=NaN;
+            FXmax(i)=NaN;
+            impactFmax(i)=NaN;
+            FYZMag(i)=NaN;
+            FY_STO(i)=NaN;
+            FPsum(i)=NaN;
+            FBsum(i)=NaN;
+            FBmax_ABS(i)=NaN;
+            FBmaxQS(i)=NaN;
+            FPmaxQS(i)=NaN;
+            ImpactMagF(i)=NaN;
+            FPmaxNoNaN(i)=NaN;
+            FBmaxNoNaN(i)=NaN;
+        else
+            if nanstd(striderF)<0.01 && nanmean(striderF)<0.01 
+                %This is to get rid of places where there is only noise and no data
+                impactF(i)=NaN;
+                FB(i)=NaN;
+                FP(i)=NaN;
+                FZ(i)=NaN;
+                FX(i)=NaN;
+                FBmax(i)=NaN;
+                FPmax(i)=NaN;
+                FZmax(i)=NaN;
+                FXmax(i)=NaN;
+                impactFmax(i)=NaN;
+                FYZMag(i)=NaN;
+                FY_STO(i)=NaN;
+                FPsum(i)=NaN;
+                FBsum(i)=NaN;
+                FBmax_ABS(i)=NaN;
+                FBmaxQS(i)=NaN;
+                FPmaxQS(i)=NaN;
+                ImpactMagF(i)=NaN;
+                FPmaxNoNaN(i)=NaN;
+                FBmaxNoNaN(i)=NaN;
+            else
+                [FB(i), FBsum(i), FP(i), FPsum(i), FY_STO(i), FBmax(i), FBmax_ABS(i), FBmaxQS(i), FPmax(i), FYZMag(i), FPmaxQS(i), ImpactMagF(i), FPmaxNoNaN(i), FBmaxNoNaN(i)] = ComputeLegForceParameters(striderF,  LevelofInterest, FlipB, ['Epoch: ' trialData.name, '; Stide#:' num2str(i) '; FastLeg']);
+
+                % There was some interest in understand Anterior-Posterior
+                % GRF impact impulse (i.e., right after heel strike)
+                % This copmputaiton is based on gait events so I can't do
+                % this in ComputeLegForceParameters.
+                if exist('postImpactF')==0 || isempty(postImpactF)==1
+                    impactF(i)=NaN;
+                    impactFmax(i)=NaN;
+                else
+                    impactF(i)=nanmean(striderF(find((striderF(FHS-FHS+1: postImpactF)-LevelofInterest)>0)))-LevelofInterest;
+                    if isempty(striderF(find((striderF(FHS-FHS+1: postImpactF)-LevelofInterest)>0)))
+                        impactFmax(i)=NaN;
+                    else
+                        impactFmax(i)=nanmax(striderF(find((striderF(FHS-FHS+1: postImpactF)-LevelofInterest)>0)))-LevelofInterest;
+                    end
+                end
+            end
+            
+            % While we think the Anterior Posterior GRFs are whats of
+            % interst other studies have looked at the vertical and medial
+            % lateral as well.
+            FZ(i)=-1*nanmean(Filtered.split(FHS, FTO2).getDataAsTS([fastleg 'Fz']).Data)/Normalizer;
+            FX(i)=nanmean(Filtered.split(FHS, FTO2).getDataAsTS([fastleg 'Fx']).Data)/Normalizer;
+            FZmax(i)=-1*nanmin(Filtered.split(FHS, FTO2).getDataAsTS([fastleg 'Fz']).Data)/Normalizer;
+            FXmax(i)=nanmax(Filtered.split(FHS, FTO2).getDataAsTS([fastleg 'Fx']).Data)/Normalizer;
+        end
+    end
+end
+
+% ~~~~~~~~~~~~~~ Formate the output for adaptData data classes ~~~~~~~~~~~~
+%% Compile Kinetic Data to be exporte
+data=[[repmat(ang, 1, length(impactS)) NaN]' [repmat(flipIT, 1,  length(impactS)) NaN]'...
+    [impactS NaN]' [SB NaN]' [SP NaN]' [impactF NaN]' [FB NaN]' [FP NaN]' [FB-SB NaN]' [FP-SP NaN]' [SX NaN]' [SZ NaN]' [FX NaN]' [FZ NaN]' [HandrailHolding NaN]'...
+    [impactSmax NaN]' [SBmax NaN]' [SPmax NaN]' [impactFmax NaN]' [FBmax NaN]' [FPmax NaN]' [FBmax-SBmax NaN]' [FPmax-SPmax NaN]' [SBmax./FBmax NaN]' [SPmax./FPmax NaN]' ...
+    [(abs(FBmax)-abs(SBmax))./(abs(FBmax)+abs(SBmax)) NaN]' [(abs(FPmax)-abs(SPmax))./(abs(FPmax)+abs(SPmax)) NaN]'  ...
+    [(abs(FBmax))./(abs(FBmax)+abs(SBmax)) NaN]' [(abs(SBmax))./(abs(FBmax)+abs(SBmax)) NaN]' [(abs(FPmax))./(abs(FPmax)+abs(SPmax)) NaN]' [(abs(SPmax))./(abs(FPmax)+abs(SPmax)) NaN]'...
+    [SBmax+SPmax NaN]' [FBmax+FPmax NaN]' [SBmax+FPmax NaN]' [FBmax+SPmax NaN]'...% Ipsilateral and contralateral AP forces
+    [SPsum NaN]' [FPsum NaN]' [SBsum NaN]' [FBsum NaN]'...
+    [SXmax NaN]' [SZmax NaN]' [FXmax NaN]' [FZmax NaN]'  [SY_FTO NaN]' [FY_STO NaN]'...
+    [FBmax_ABS NaN]' [SBmax_ABS NaN]'...
+    [SBmaxQS NaN]' [SPmaxQS NaN]' [FBmaxQS NaN]' [FPmaxQS NaN]' [ImpactMagS NaN]' [ImpactMagF NaN]'...
+    [SPmaxNoNaN NaN]', [SBmaxNoNaN NaN]', [FPmaxNoNaN NaN]', [FBmaxNoNaN NaN]'...
+    outCOM.Data outCOP.Data];
+description={'Angle I think the study was run at', 'Identified as a decline trial with subjects walking backwards',...
+    'GRF-FYs average signed impact force', 'GRF-FYs average signed braking', 'GRF-FYs average signed propulsion',...
+    'GRF-FYf average signed impact force', 'GRF-FYf average signed braking', 'GRF-FYf average signed propulsion', ...
+    'GRF-FYs average signed Symmetry braking', 'GRF-FYs average signed Symmetry propulsion',...
+    'GRF-Fxs average force', 'GRF-Fzs average force',...
+    'GRF-Fxf average force', 'GRF-Fzf average force', 'Handrail was being held onto'...
+    'GRF-FYs max signed impact force', 'GRF-FYs max signed braking', 'GRF-FYs max signed propulsion',...
+    'GRF-FYf max signed impact force', 'GRF-FYf max signed braking', 'GRF-FYf max signed propulsion', ...
+    'GRF-FYs max signed Symmetry braking (fast-slow)', 'GRF-FYs max signed Symmetry propulsion (fast-slow)',...
+    'GRF-FYs max signed Ratio braking (s/f)', 'GRF-FYs max signed Ratio propulsion (s/f)',...
+    'GRF-FYs max signed Normalized Ratio braking (abs(fast)-abs(slow))/(abs(fast)+abs(slow))', 'GRF-FYs max signed Normalized Ratio propulsion (abs(fast)-abs(slow))/(abs(fast)+abs(slow))',...
+    'Fast max Braking Percent', 'Slow max Braking Percent','Fast max Propulsion Percent', 'Slow max Propulsion Percent'...
+    '[SBmax+SPmax NaN]', '[FBmax+FPmax NaN]', '[SBmax+FPmax NaN]', '[FBmax+SPmax NaN]',...% Ipsilateral and contralateral AP forces
+    'Summed time normalized slow propulsion froce', 'Summed time normalized fast propulsion froce', 'Summed slow braking', 'Summed Fast breaking',...
+    'GRF-Fxs max force', 'GRF-Fzs max force',...
+    'GRF-Fxf max force', 'GRF-Fzf max force',...
+    'GRFy Slow at FTO', 'GRFy Fast at STO', 'FBmax_ABS', 'SBmax_ABS', '', '', '', '', '', '', '', '', '', ''};%, ...
+labels={'TMAngle', 'WalkingDirection', 'FyImpactS', 'FyBS', 'FyPS', 'FyImpactF', 'FyBF', 'FyPF','FyBSym', 'FyPSym', 'FxS', 'FzS', 'FxF', 'FzF', 'HandrailHolding',...
+    'FyImpactSmax', 'FyBSmax', 'FyPSmax', 'FyImpactFmax', 'FyBFmax', 'FyPFmax','FyBmaxSym', 'FyPmaxSym','FyBmaxRatio', 'FyPmaxRatio','FyBmaxSymNorm', 'FyPmaxSymNorm',...
+    'FBmaxPer','SBmaxPer','FPmaxPer','SPmaxPer',...
+    'Slow_Ipsi_FySym','Fast_Ipsi_FySym','SlowB_Contra_FySym','FastB_Contra_FySym' ...% Ipsilateral and contralateral AP forces
+    'SPsum', 'FPsum','SBsum', 'FBsum',...
+    'FxSmax', 'FzSmax', 'FxFmax', 'FzFmax', 'SY_FTO', 'FY_STO', 'FBmax_ABS', 'SBmax_ABS',...
+    'FySBmaxQS', 'FySPmaxQS', 'FyFBmaxQS', 'FyFPmaxQS',  'FyImpactMagS' 'FyImpactMagF', 'SPmaxNoNaN', 'SBmaxNoNaN', 'FPmaxNoNaN', 'FBmaxNoNaN'};%, 'SYZMag', 'FYZMag'
+
+%% COM/COP
+% There was an interest in looking at the Center of Mass (COM)
+% trajectories and the Center of Pressure (COP).
+% This analysis will only be completed if aspecific marker set ws used.   
+% Because this is marker set is not standard for the lab, the COM/COP will 
+% rarely be computed. 
+if isempty(markerData.getLabelsThatMatch('Hat'))
+    labels=[labels outCOM.labels outCOP.labels];
+    description=[description outCOM.description outCOP.description];
+end
+out=parameterSeries(data,labels,[],description);
+end
+
