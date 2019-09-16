@@ -1,4 +1,5 @@
-# Sombric et al. 2019
+Sombric, Carly J., Jonathan S. Calvert, and Gelsy Torres-Oviedo. "Large propulsion demands increase locomotor adaptation at the expense of step length symmetry." Frontiers in physiology 10 (2019).
+doi: 10.3389/fphys.2019.00060
 
 This code was developed with MATLAB 2016a.
 
