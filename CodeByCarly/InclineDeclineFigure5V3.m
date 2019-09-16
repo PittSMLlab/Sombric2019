@@ -1,4 +1,4 @@
-function Stats=InclineDeclineFigure5V2(adaptDataList,params,conds,binWidth,trialMarkerFlag,indivSubFlag,IndivSubList,removeBias,groups, results, resultsNoBias)
+function InclineDeclineFigure5V2(adaptDataList,params,conds,binWidth,trialMarkerFlag,indivSubFlag,IndivSubList,removeBias,groups, results, resultsNoBias)
 %% Set up the physical Figure
 axesFontSize=10;
 labelFontSize=0;
@@ -17,7 +17,7 @@ for p=1:length(params)
     plotAvgTimeCourseSingle(adaptDataList,params(p),conds,binWidth,trialMarkerFlag,indivSubFlag,IndivSubList,colorOrder,0,removeBias,groups,0,ah, row, col, subers(p, :)); hold on
 end
 
-Stats=CrissCrossSingle(adaptDataList,resultsNoBias,groups,params,colorOrder, 2, 3, [3 6], figHandle.Number)
+CrissCrossSingle(adaptDataList,resultsNoBias,groups,params,colorOrder, 2, 3, [3 6], figHandle.Number)
 axis square
 
 
