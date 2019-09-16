@@ -100,7 +100,7 @@ for g=1:length(groups)
 end
 plot(abs(residersMyMDL_ASAS), 'm', 'LineWidth', 4); line([0 25], [mean(abs(residersMyMDL_ASAS)) mean(abs(residersMyMDL_ASAS))], 'LineStyle', '--', 'Color', 'm');
 plot(abs(residersMeanMDL_ASAS), 'y', 'LineWidth', 4); line([0 25], [mean(abs(residersMeanMDL_ASAS)) mean(abs(residersMeanMDL_ASAS))], 'LineStyle', '--', 'Color', 'y');
-legend(groups{:}, 'My Model','My Model: |Res|','Mean Model','Mean Model: |Res|', 'FontSize',20, 'Location', 'eastoutside');
+legend({groups{:}, 'My Model','My Model: |Res|','Mean Model','Mean Model: |Res|'}, 'FontSize',20, 'Location', 'eastoutside');
 xlabel('EACH Subject', 'FontSize', 12)
 title({['All Subjects, All Stides (5)']; [lm_ASAS.Formula.LinearPredictor]; ['DelBIC = ', num2str(DeltaBIC), '; ~BF=', num2str(BF)]; ['My Mean |Error| :' num2str(nanmean(abs(residersMyMDL_ASAS))) ' Vs. Group Mean |Error| :' num2str(nanmean(abs(residersMeanMDL_ASAS)))]}, 'FontSize', 12)
 [~, p]=ttest(abs(residersMyMDL_ASAS), abs(residersMeanMDL_ASAS), 'Tail', 'left');
@@ -127,7 +127,7 @@ for g=1:length(groups)
 end
 plot(abs(residersMyMDL_ASAS), 'm', 'LineWidth', 4); line([0 25], [mean(abs(residersMyMDL_ASAS)) mean(abs(residersMyMDL_ASAS))], 'LineStyle', '--', 'Color', 'm');
 plot(abs(residersMyMDL_SL), 'y', 'LineWidth', 4); line([0 25], [mean(abs(residersMyMDL_SL)) mean(abs(residersMyMDL_SL))], 'LineStyle', '--', 'Color', 'y');
-legend(groups{:}, 'My Model','My Model: |Res|','SL Model','Mean Model: |Res|', 'FontSize',20, 'Location', 'eastoutside');
+legend({groups{:}, 'My Model','My Model: |Res|','SL Model','Mean Model: |Res|'}, 'FontSize',20, 'Location', 'eastoutside');
 xlabel('EACH Subject', 'FontSize', 12)
 title({['Compare Propulsion with SL model']; [lmSL.Formula.LinearPredictor]; ['DelBIC_SL = ', num2str(DeltaBIC_SL), '; ~BF_SL=', num2str(BF_SL)]; ['My Mean |Error| :' num2str(nanmean(abs(residersMyMDL_ASAS))) ' Vs. Group Mean |Error| :' num2str(nanmean(abs(residersMyMDL_SL)))]}, 'FontSize', 12)
 [~, p]=ttest(abs(residersMyMDL_ASAS), abs(residersMyMDL_SL), 'Tail', 'left');
